@@ -4,28 +4,42 @@ This is a basic deferred pipeline visualizer using MRTs to create the G-buffer, 
 
 Grass rendering by mesh instancing is also implemented.
 
-<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; width:100%;">
   <tr>
     <td style="padding:0; width:50%; text-align:center; vertical-align:middle;">
-      <img src="images/tonemap.png" alt="Tonemap"
-           style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+      <div style="display:inline-block; text-align:center;">
+        <img src="images/tonemap.png" alt="Tonemap"
+             style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+        <div style="margin-top:6px; font-size:13px;">PBR Tonemapped</div>
+      </div>
     </td>
     <td style="padding:0; width:50%; text-align:center; vertical-align:middle;">
-      <img src="images/celshading.png" alt="Cel Shading"
-           style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+      <div style="display:inline-block; text-align:center;">
+        <img src="images/celshading.png" alt="Cel Shading"
+             style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+        <div style="margin-top:6px; font-size:13px;">Toon Shading</div>
+      </div>
     </td>
   </tr>
+
   <tr>
     <td style="padding:0; width:50%; text-align:center; vertical-align:middle;">
-      <img src="images/blinn-phong.png" alt="Blinn-Phong"
-           style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+      <div style="display:inline-block; text-align:center;">
+        <img src="images/blinn-phong.png" alt="Blinn-Phong"
+             style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+        <div style="margin-top:6px; font-size:13px;">Blinn Phong</div>
+      </div>
     </td>
     <td style="padding:0; width:50%; text-align:center; vertical-align:middle;">
-      <img src="images/kuwahara.png" alt="Kuwahara"
-           style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+      <div style="display:inline-block; text-align:center;">
+        <img src="images/kuwahara.png" alt="Kuwahara"
+             style="max-height:250px; height:auto; width:auto; display:block; margin:0 auto;">
+        <div style="margin-top:6px; font-size:13px;">Post Process Isotropic Kuwahara Filter</div>
+      </div>
     </td>
   </tr>
 </table>
+
 
 ## Project Setup
 ### Prerequisites
