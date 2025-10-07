@@ -756,6 +756,182 @@ function checkKeyboard() {
   }
 }
 
+// -------------- CACHING SUBSECTION -------------------
+const texelSizeVec = new THREE.Vector2(1.0 / window.innerWidth, 1.0 / window.innerHeight);
+const tmpVec3 = new THREE.Vector3();
+const U = {
+  lighting: lightingMaterial.uniforms,
+  blinn: blinnMaterial.uniforms,
+  lambert: lambertMaterial.uniforms,
+  gouraud: gouraudMaterial.uniforms,
+  pp: ppMaterial.uniforms,
+  tone: toneMaterial.uniforms,
+  out: outMaterial.uniforms
+};
+
+U.lighting.gPosition = U.lighting.gPosition || { value: null };
+
+// update uniforms for a single lighting material
+function updateCommonDeferredUniforms(uniforms) {
+  // set textures once
+  uniforms.gPosition.value = gBuffer.textures[0];
+  uniforms.gNormal.value = gBuffer.textures[1];
+  uniforms.gAlbedo.value = gBuffer.textures[2];
+  uniforms.gORDM.value = gBuffer.textures[3];
+  uniforms.gEmission.value = gBuffer.textures[4];
+  uniforms.depthTex.value = gBuffer.depthTexture;
+
+  // avoid creating a new Vector3
+  tmpVec3.copy(orbPosition.value || new THREE.Vector3());
+  uniforms.lightPos.value.copy(tmpVec3);
+  uniforms.viewPos.value.copy(camera.position);
+  uniforms.lightRadius.value = orbRadius.value;
+}
+
+function updatePPUniformsFast() {
+  U.pp.hdrScene.value = blinnRT.texture;
+  U.pp.gPosition.value = gBuffer.textures[0];
+  U.pp.gNormal.value = gBuffer.textures[1];
+  U.pp.gAlbedo.value = gBuffer.textures[2];
+  U.pp.gORDM.value = gBuffer.textures[3];
+  U.pp.gEmission.value = gBuffer.textures[4];
+  U.pp.depthTex.value = gBuffer.depthTexture;
+  U.pp.lightPos.value.copy(orbPosition.value);
+  U.pp.viewPos.value.copy(camera.position);
+  U.pp.lightRadius.value = orbRadius.value;
+
+  // Reuse the same vector and only set components
+  texelSizeVec.x = 1.0 / window.innerWidth;
+  texelSizeVec.y = 1.0 / window.innerHeight;
+  if (!U.pp.texelSize) U.pp.texelSize = { value: texelSizeVec };
+  else U.pp.texelSize.value = texelSizeVec;
+}
+
+const passMap = {
+  0: ['gBuffer','blinn','pp'],     // postprocess: need blinn (since pp uses blinn texture)
+  1: ['gBuffer','pbr','tone'],     // tonemap
+  2: ['gBuffer','pbr'],
+  3: ['gBuffer','blinn'],
+  4: ['gBuffer','lambert'],
+  5: ['gBuffer','gouraud'],
+  6: ['gBuffer'],                  // show gPosition
+  7: ['gBuffer'],                  // show gNormal
+  8: ['gBuffer'],                  // show gAlbedo
+  9: ['gBuffer']                   // show gORDM
+};
+
+// Helper to render a lighting pass
+function renderQuadToTarget(material, target) {
+  if (window.quadMesh.material !== material) {
+    window.quadMesh.material = material;
+  }
+  renderer.setRenderTarget(target);
+  renderer.clear(true, true, true);
+  renderer.render(window.quadScene, window.quadCamera);
+}
+
+// Compute functions for each named pass
+function computeGBuffer() {
+  renderer.setRenderTarget(gBuffer);
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+function computePBR() {
+  updateCommonDeferredUniforms(U.lighting);
+  renderQuadToTarget(lightingMaterial, pbrRT);
+}
+
+function computeBlinn() {
+  updateCommonDeferredUniforms(U.blinn);
+  renderQuadToTarget(blinnMaterial, blinnRT);
+}
+
+function computeLambert() {
+  updateCommonDeferredUniforms(U.lambert);
+  renderQuadToTarget(lambertMaterial, lambertRT);
+}
+
+function computeGouraud() {
+  updateCommonDeferredUniforms(U.gouraud);
+  renderQuadToTarget(gouraudMaterial, gouraudRT);
+}
+
+function computeTone() {
+  // toneMaterial only needs pbrRT
+  toneMaterial.uniforms.hdrScene.value = pbrRT.texture;
+  renderQuadToTarget(toneMaterial, null);
+}
+
+function computePP() {
+  updatePPUniformsFast();
+  ppMaterial.uniforms.hdrScene.value = blinnRT.texture;
+  renderQuadToTarget(ppMaterial, null);
+}
+
+// -------------- OPTIMIZED RENDER SECTION -------------------
+function gRenderOptimized() {
+  const required = passMap[displayMode] || ['gBuffer','pbr','tone'];
+  if (required.includes('gBuffer')) computeGBuffer();
+
+  // compute other passes only if required
+  if (required.includes('pbr')) computePBR();
+  if (required.includes('blinn')) computeBlinn();
+  if (required.includes('lambert')) computeLambert();
+  if (required.includes('gouraud')) computeGouraud();
+
+  // display switch (render final chosen texture)
+  switch (displayMode) {
+    case 0: // post process (pp needs blinn)
+      computePP(); // renders to screen
+      return;
+    case 1: // tonemap (from pbr)
+      // tone render to screen
+      toneMaterial.uniforms.hdrScene.value = pbrRT.texture;
+      window.quadMesh.material = toneMaterial;
+      renderer.setRenderTarget(null);
+      renderer.clear(true, true, true);
+      renderer.render(window.quadScene, window.quadCamera);
+      return;
+    case 2:
+      outMaterial.uniforms.tex.value = pbrRT.texture;
+      break;
+    case 3:
+      outMaterial.uniforms.tex.value = blinnRT.texture;
+      break;
+    case 4:
+      outMaterial.uniforms.tex.value = lambertRT.texture;
+      break;
+    case 5:
+      outMaterial.uniforms.tex.value = gouraudRT.texture;
+      break;
+    case 6:
+      outMaterial.uniforms.tex.value = gBuffer.textures[0]; // position
+      break;
+    case 7:
+      outMaterial.uniforms.tex.value = gBuffer.textures[1]; // normal
+      break;
+    case 8:
+      outMaterial.uniforms.tex.value = gBuffer.textures[2]; // albedo
+      break;
+    case 9:
+      outMaterial.uniforms.tex.value = gBuffer.textures[3]; // ordm
+      break;
+    default:
+      toneMaterial.uniforms.hdrScene.value = pbrRT.texture;
+      window.quadMesh.material = toneMaterial;
+      renderer.setRenderTarget(null);
+      renderer.clear(true, true, true);
+      renderer.render(window.quadScene, window.quadCamera);
+      return;
+  }
+
+  window.quadMesh.material = outMaterial;
+  renderer.setRenderTarget(null);
+  renderer.clear(true, true, true);
+  renderer.render(window.quadScene, window.quadCamera);
+}
+
 // -------------- RENDER SECTION -------------------
 function gRender() {
   // GBuffer
@@ -857,11 +1033,12 @@ function update() {
 
   // Requests the next update call, this creates a loop
   requestAnimationFrame(update);
-  // renderer.render(scene, camera);
-  gRender();
-
+  
   if (window.grassMaterial && grassEnabled) {
     window.grassMaterial.uniforms.uTime.value = performance.now() * 0.001;
   }
+  // renderer.render(scene, camera);
+  // gRender();
+  gRenderOptimized();
 }
 
