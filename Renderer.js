@@ -191,6 +191,17 @@ const metalMetallic = new THREE.TextureLoader().load(
   "images/gold_metallic.png"
 );
 
+// // metal textures
+// const metalDiff = new THREE.TextureLoader().load("images/gold-test/albedo.png");
+// const metalDisp = new THREE.TextureLoader().load("images/gold-test/albedo.png");
+// const metalNorm = new THREE.TextureLoader().load("images/gold-test/normal.png");
+// const metalRoughness = new THREE.TextureLoader().load(
+//   "images/gold-test/roughness.png"
+// );
+// const metalMetallic = new THREE.TextureLoader().load(
+//   "images/gold-test/metallic.png"
+// );
+
 // -------------- SHADER SECTION -------------------
 // armadillo GShader needs tinting and deformation
 const armadilloGMaterial = new THREE.ShaderMaterial({
@@ -206,8 +217,8 @@ const armadilloGMaterial = new THREE.ShaderMaterial({
     uUseDispTex: { value: true },
 
     uAlbedo: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
-    uRoughness: { value: 1.0 },
-    uMetallic: { value: 0.0 },
+    uRoughness: { value: 0.0 },
+    uMetallic: { value: 1.0 },
     uAO: { value: 1.0 },
     uDisplacement: { value: 0.0 },
 
@@ -304,9 +315,12 @@ const grassGMaterial = new THREE.ShaderMaterial({
     uDispTex: { value: null },
   },
   glslVersion: THREE.GLSL3,
-  side: THREE.DoubleSide,
+  //side: THREE.DoubleSide,
+  side: THREE.FrontSide,
   transparent: false,
   depthWrite: true,
+  castShadow: false,
+  alphaTest: 0.5,
 });
 
 // glove shader
@@ -382,7 +396,7 @@ const lightingMaterial = new THREE.ShaderMaterial({
 const toneMaterial = new THREE.ShaderMaterial({
   uniforms: {
     hdrScene: { value: null },
-    exposure: { value: 0.01 },
+    exposure: { value: 0.9 },
   },
   glslVersion: THREE.GLSL3,
 });
@@ -589,7 +603,7 @@ loadSources(shaderFiles, function (shaders) {
   floor.parent = worldFrame;
 
   // create grass instancing
-  const blade = new THREE.PlaneGeometry(0.05, 0.6, 1.0, 4.0);
+  const blade = new THREE.PlaneGeometry(0.05, 0.6, 1.0, 2.0);
   const vertCount = blade.attributes.position.count;
   const bladeTangents = new Float32Array(vertCount * 4);
   for (let i = 0; i < vertCount; i++) {
@@ -601,7 +615,7 @@ loadSources(shaderFiles, function (shaders) {
   blade.setAttribute("tangent", new THREE.BufferAttribute(bladeTangents, 4));
   blade.translate(0.0, 0.3, 0.0);
   blade.scale(5.0, 5.0, 5.0);
-  const GRASS_COUNT = 250000;
+  const GRASS_COUNT = 100000;
   const grass = new THREE.InstancedMesh(blade, grassGMaterial, GRASS_COUNT);
 
   const offsets = new Float32Array(GRASS_COUNT * 3);
@@ -609,7 +623,7 @@ loadSources(shaderFiles, function (shaders) {
   const scales = new Float32Array(GRASS_COUNT);
   const seeds = new Float32Array(GRASS_COUNT);
 
-  const AREA = 125.0;
+  const AREA = 90.0;
   const m = new THREE.Matrix4();
   for (let i = 0; i < GRASS_COUNT; i++) {
     const x = (Math.random() - 0.5) * AREA;
@@ -624,9 +638,9 @@ loadSources(shaderFiles, function (shaders) {
     scales[i] = 0.8 + Math.random() * 0.6;
     seeds[i] = Math.random();
 
-    grass.setMatrixAt(i, m.identity());
+    // grass.setMatrixAt(i, m.identity());
   }
-  grass.instanceMatrix.needsUpdate = true;
+  // grass.instanceMatrix.needsUpdate = true;
 
   // Attach instanced attributes to geometry
   blade.setAttribute(
@@ -647,8 +661,10 @@ loadSources(shaderFiles, function (shaders) {
   );
 
   grass.frustumCulled = true;
-  grass.parent = worldFrame;
-  grass.instanceMatrix.needsUpdate = true;
+  // grass.parent = worldFrame;
+  // grass.instanceMatrix.needsUpdate = true;
+  grass.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  worldFrame.add(grass);
   scene.add(grass);
   window.grassMaterial = grassGMaterial;
   window.grass = grass;
@@ -672,6 +688,14 @@ loadSources(shaderFiles, function (shaders) {
     disp: gloveDisp,
   });
   gloveGMaterial.needsUpdate = true;
+
+  // gloveGMaterial = createMaterialWithTextures(armadilloGMaterial, {
+  //   albedo: metalDiff,
+  //   normal: metalNorm,
+  //   rough: metalRoughness,
+  //   disp: gloveDisp,
+  // });
+  // gloveGMaterial.needsUpdate = true;
 
   // Load and place the Armadillo geometry
   loadAndPlaceOBJ(
@@ -757,7 +781,10 @@ function checkKeyboard() {
 }
 
 // -------------- CACHING SUBSECTION -------------------
-const texelSizeVec = new THREE.Vector2(1.0 / window.innerWidth, 1.0 / window.innerHeight);
+const texelSizeVec = new THREE.Vector2(
+  1.0 / window.innerWidth,
+  1.0 / window.innerHeight
+);
 const tmpVec3 = new THREE.Vector3();
 const U = {
   lighting: lightingMaterial.uniforms,
@@ -766,7 +793,7 @@ const U = {
   gouraud: gouraudMaterial.uniforms,
   pp: ppMaterial.uniforms,
   tone: toneMaterial.uniforms,
-  out: outMaterial.uniforms
+  out: outMaterial.uniforms,
 };
 
 U.lighting.gPosition = U.lighting.gPosition || { value: null };
@@ -808,16 +835,16 @@ function updatePPUniformsFast() {
 }
 
 const passMap = {
-  0: ['gBuffer','blinn','pp'],     // postprocess: need blinn (since pp uses blinn texture)
-  1: ['gBuffer','pbr','tone'],     // tonemap
-  2: ['gBuffer','pbr'],
-  3: ['gBuffer','blinn'],
-  4: ['gBuffer','lambert'],
-  5: ['gBuffer','gouraud'],
-  6: ['gBuffer'],                  // show gPosition
-  7: ['gBuffer'],                  // show gNormal
-  8: ['gBuffer'],                  // show gAlbedo
-  9: ['gBuffer']                   // show gORDM
+  0: ["gBuffer", "blinn", "pp"], // postprocess: need blinn (since pp uses blinn texture)
+  1: ["gBuffer", "pbr", "tone"], // tonemap
+  2: ["gBuffer", "pbr"],
+  3: ["gBuffer", "blinn"],
+  4: ["gBuffer", "lambert"],
+  5: ["gBuffer", "gouraud"],
+  6: ["gBuffer"], // show gPosition
+  7: ["gBuffer"], // show gNormal
+  8: ["gBuffer"], // show gAlbedo
+  9: ["gBuffer"], // show gORDM
 };
 
 // Helper to render a lighting pass
@@ -871,14 +898,14 @@ function computePP() {
 
 // -------------- OPTIMIZED RENDER SECTION -------------------
 function gRenderOptimized() {
-  const required = passMap[displayMode] || ['gBuffer','pbr','tone'];
-  if (required.includes('gBuffer')) computeGBuffer();
+  const required = passMap[displayMode] || ["gBuffer", "pbr", "tone"];
+  if (required.includes("gBuffer")) computeGBuffer();
 
   // compute other passes only if required
-  if (required.includes('pbr')) computePBR();
-  if (required.includes('blinn')) computeBlinn();
-  if (required.includes('lambert')) computeLambert();
-  if (required.includes('gouraud')) computeGouraud();
+  if (required.includes("pbr")) computePBR();
+  if (required.includes("blinn")) computeBlinn();
+  if (required.includes("lambert")) computeLambert();
+  if (required.includes("gouraud")) computeGouraud();
 
   // display switch (render final chosen texture)
   switch (displayMode) {
@@ -1033,7 +1060,7 @@ function update() {
 
   // Requests the next update call, this creates a loop
   requestAnimationFrame(update);
-  
+
   if (window.grassMaterial && grassEnabled) {
     window.grassMaterial.uniforms.uTime.value = performance.now() * 0.001;
   }
@@ -1041,4 +1068,3 @@ function update() {
   // gRender();
   gRenderOptimized();
 }
-

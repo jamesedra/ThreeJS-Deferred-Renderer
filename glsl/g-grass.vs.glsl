@@ -44,7 +44,7 @@ void main() {
 
     // per instance transforms
     p *= instanceScale;
-    n = normalize(n); // before rotation
+    // n = normalize(n); // before rotation
     mat3 R = rotY(instanceRotation);
     p = R * p + instanceOffset;
     n = normalize(R * n);
@@ -66,17 +66,18 @@ void main() {
 
     // tilt world normal along bend direction
     Nw = normalize(Nw + bendDirW * (uHitAmp * falloff * h));
+    // Nw = normalize(normalMatrix * n); // cheaper
 
     FragPos = wp.xyz;
     Normal  = Nw;
     TexCoords = uv;
 
     // TBN world matrix 
-    vec3 Tobj = (rotY(instanceRotation) * tangent.xyz);
-    vec3 Tw = normalize(mat3(modelMatrix) * Tobj);
-    Tw = normalize(Tw - dot(Tw, Nw) * Nw);
-    vec3 Bw = normalize(cross(Nw, Tw) * tangent.w);
-    TBNMatrix = mat3(Tw, Bw, Nw);
+    // vec3 Tobj = (rotY(instanceRotation) * tangent.xyz);
+    // vec3 Tw = normalize(mat3(modelMatrix) * Tobj);
+    // Tw = normalize(Tw - dot(Tw, Nw) * Nw);
+    // vec3 Bw = normalize(cross(Nw, Tw) * tangent.w);
+    // TBNMatrix = mat3(Tw, Bw, Nw);
 
     gl_Position = projectionMatrix * viewMatrix * wp;
 }

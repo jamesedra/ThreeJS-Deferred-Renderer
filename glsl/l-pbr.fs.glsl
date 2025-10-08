@@ -71,16 +71,23 @@ void main() {
 	vec3 l = normalize(lightPos - fragPos);
 	vec3 h = normalize(v + l);
 
-    // Non-PBR lighting helper
     float dist = length(lightPos - fragPos);
-    float dist2 = max(dist * dist, 1e-4);
-    float invSq = 1.0 / dist2;
-    float radius = lightRadius;
-    float radiusFade = clamp(1.0 - (dist / radius), 0.0, 1.0);
-    radiusFade = pow(radiusFade, 1.25);
     float intensity = 300.0;
-    float attenuation = invSq * radiusFade * intensity;
-    vec3 radiance = vec3(1.0) * attenuation;
+
+    // Non-PBR lighting helper
+    // float dist2 = max(dist * dist, 1e-4);
+    // float invSq = 1.0 / dist2;
+    // float radius = lightRadius;
+    // float radiusFade = clamp(1.0 - (dist / radius), 0.0, 1.0);
+    // radiusFade = pow(radiusFade, 1.25);
+    
+    // float attenuation = invSq * radiusFade * intensity;
+    // vec3 radiance = vec3(1.0) * attenuation;
+
+    vec3 radiance = vec3(1.0) * (intensity / max(dist*dist, 1e-4));
+
+    float window = 1.0 - smoothstep(lightRadius*0.70, lightRadius, dist);
+    radiance *= window;
 
 	// Dot product setup
 	float nDotL = max(dot(n, l), 0.0);
@@ -98,16 +105,28 @@ void main() {
 	vec3 SpecBRDF = SpecBRDF_nom / max(SpecBRDF_denom, 0.001);
 
 	// Diffuse BRDF
+    vec3 Fa = FresnelRoughness(nDotV, F0, roughness);
+    vec3 kD = (vec3(1.0) - Fa) * (1.0 - metallic);
+
 	vec3 kS = F;
-	vec3 kD = vec3(1.0) - kS;
-	kD *= 1.0 - metallic;
-		
+	// vec3 kD = vec3(1.0) - kS;
+	// kD *= 1.0 - metallic;
 	vec3 fLambert = albedo;
 	vec3 DiffuseBRDF = kD * fLambert / PI;
 
 	Lo += (DiffuseBRDF + SpecBRDF) * radiance * nDotL;
 
-    vec3 ambient = vec3(0.05) * albedo * ao;
+    // vec3 ambient = vec3(0.02) * albedo * ao;
+
+    vec3 sky = vec3(0.1506, 0.1808, 0.1882); 
+    vec3 ground = sky * 0.5;
+    float hemiNDot = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+    hemiNDot = pow(hemiNDot, 1.2);
+    vec3 hemiIrradiance = mix(ground, sky, hemiNDot);
+
+    float envIntensity = 0.6;
+    vec3 ambient = kD * (hemiIrradiance * albedo * (1.0/PI)) * ao * envIntensity;
+    ambient += kD * (albedo * 0.005) * ao;
 
     vec3 color = ambient + Lo;
 	fragColor = vec4(color, 1.0);
